@@ -1,7 +1,8 @@
 .env
 .venv/
+node_modules/
+.uv-cache/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.py[cod]
-
