@@ -1,12 +1,15 @@
 import base64
 import json
 
-from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
-load_dotenv()
+from app.core.config import settings
 
-client = AsyncOpenAI()
+
+def _client() -> AsyncOpenAI:
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
+    return AsyncOpenAI(api_key=settings.openai_api_key)
 
 
 # Prompt 1~3 일반 텍스트 실행
@@ -14,8 +17,8 @@ async def run_prompt(
     prompt: str,
     input_data: str,
 ) -> str:
-    response = await client.responses.create(
-        model="gpt-5.6-luna",
+    response = await _client().responses.create(
+        model=settings.openai_model,
         instructions=prompt,
         input=input_data,
     )
@@ -28,14 +31,10 @@ async def run_prompt_with_web(
     prompt: str,
     input_data: str,
 ) -> str:
-    response = await client.responses.create(
-        model="gpt-5.6-luna",
+    response = await _client().responses.create(
+        model=settings.openai_model,
         instructions=prompt,
-        tools=[
-            {
-                "type": "web_search"
-            }
-        ],
+        tools=[{"type": "web_search"}],
         input=input_data,
     )
 
@@ -53,9 +52,7 @@ async def run_product_image_prompt(
 
     input_text = json.dumps(
         {
-            "user_profile": {
-                "profile_code": profile_code
-            },
+            "user_profile": {"profile_code": profile_code},
             "request": (
                 "사진에서 브랜드와 정확한 제품명을 확인하십시오. "
                 "웹 검색으로 해당 제품의 전체 전성분과 출처 URL을 찾고, "
@@ -67,14 +64,10 @@ async def run_product_image_prompt(
         ensure_ascii=False,
     )
 
-    response = await client.responses.create(
-        model="gpt-5.6-luna",
+    response = await _client().responses.create(
+        model=settings.openai_model,
         instructions=prompt,
-        tools=[
-            {
-                "type": "web_search"
-            }
-        ],
+        tools=[{"type": "web_search"}],
         input=[
             {
                 "role": "user",
@@ -85,9 +78,7 @@ async def run_product_image_prompt(
                     },
                     {
                         "type": "input_image",
-                        "image_url": (
-                            f"data:{content_type};base64,{encoded_image}"
-                        ),
+                        "image_url": (f"data:{content_type};base64,{encoded_image}"),
                         "detail": "high",
                     },
                 ],

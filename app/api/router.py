@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     analytics,
+    ai_analysis,
     auth,
     commerce,
     diagnoses,
@@ -16,6 +17,7 @@ from app.api.routes import (
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
+api_router.include_router(ai_analysis.router, prefix="/ai", tags=["ai"])
 api_router.include_router(integrations.router, prefix="/integrations", tags=["integrations"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(me.router, prefix="/me", tags=["home"])
