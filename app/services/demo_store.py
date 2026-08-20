@@ -678,6 +678,20 @@ class DemoStore:
         self._require_routine(session, job["routine_id"])
         return job
 
+    def record_ai_analysis_result(
+        self,
+        session: DemoSession,
+        routine_id: str,
+        *,
+        input_payload: dict,
+        output_payload: dict,
+    ) -> dict:
+        self._require_routine(session, routine_id)
+        job = self._complete_job("SUITABILITY_ANALYSIS", routine_id)
+        self.jobs[job["id"]]["input_payload"] = input_payload
+        self.jobs[job["id"]]["output_payload"] = output_payload
+        return job
+
     def _complete_job(self, job_type: str, routine_id: str) -> dict:
         job_id = str(uuid4())
         job = {

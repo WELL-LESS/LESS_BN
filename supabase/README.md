@@ -14,6 +14,11 @@ Project ref: `rzjhalgyhznynhyxpuoz`
    - demo diagnosis for personal code `WHS-2026-1234`
    - one AAC catalog product
    - three Storage buckets
+3. `20260820170139_align_dynamic_frontend_and_ai_data.sql`
+   - O/D/C 12개 피부 유형과 진단 이미지
+   - OpenAI 실행·입력 이미지 추적 필드
+4. `20260820171500_add_openai_prompt_tracking.sql`
+   - OpenAI 프롬프트 ID와 버전 추적 필드
 
 ## Access model
 
@@ -38,5 +43,5 @@ npx supabase migration list
 npx supabase db push
 ```
 
-The remote project already has both migrations applied. Team members should not
+The remote project already has all four migrations applied. Team members should not
 run the SQL manually in the Dashboard; use migrations for future schema changes.

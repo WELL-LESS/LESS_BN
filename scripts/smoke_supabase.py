@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.core.config import settings
 from app.main import app
+from app.services.store import store
 from app.services.supabase_client import get_supabase_admin_client
 
 
@@ -79,6 +80,28 @@ def main() -> None:
             "upload product",
         )
         storage_paths.extend(image["object_path"] for image in product_input["images"])
+        session = store.get_session(access_token)
+        if session is None:
+            raise RuntimeError("created session could not be loaded")
+        ai_run = store.record_ai_analysis_result(
+            session,
+            routine_id,
+            input_payload={"profile_code": diagnosis["diagnosis_code"], "image_count": 1},
+            output_payload={
+                "overall_score": 73,
+                "summary": "Supabase smoke analysis",
+                "ruleset_version": "smoke-v1",
+            },
+        )
+        linked_images = (
+            admin.table("ai_analysis_run_images")
+            .select("product_scan_image_id")
+            .eq("ai_analysis_run_id", ai_run["id"])
+            .execute()
+            .data
+        )
+        if len(linked_images) != 1:
+            raise RuntimeError(f"unexpected linked image count: {len(linked_images)}")
         require_success(
             api.post(f"/api/v1/routines/{routine_id}/compose", headers=headers),
             "compose",

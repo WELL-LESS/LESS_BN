@@ -223,11 +223,17 @@ AI 실패 시 `COMPOSE_FAILED` 또는 `ANALYSIS_FAILED`가 되며 같은 실행 
 | `POST` | `/routines/{routine_id}/suitability-analysis` | `CONFIRMED`, `ANALYSIS_FAILED` | 적합도 분석 시작 |
 | `GET` | `/jobs/{job_id}` | - | AI 작업 상태 조회 |
 
+해커톤 앱의 현재 동기식 통합 경로는 `POST /ai/analyze-routine`을 사용한다. 이 요청은
+Bearer 인증, `routine_id`, 이미 저장한 촬영 이미지와 동일한 이미지 파일을 받는다. 서버는
+개인 코드에 연결된 피부 유형을 DB에서 조회해 OpenAI에 전달하고, 결과와 입력 이미지 연결을
+`ai_analysis_runs`, `ai_analysis_run_images`에 기록한다. 정식 비동기 파이프라인이 완성되면
+이 경로는 위의 `compose` 및 `suitability-analysis` 작업으로 통합한다.
+
 제품 사진 등록 형식:
 
 ```text
 Content-Type: multipart/form-data
-category_code = SERUM_ESSENCE_AMPOULE
+category_code = ESSENCE_SERUM_AMPOULE
 client_product_id = optional-client-uuid
 images = front.jpg
 images = ingredients.jpg
@@ -235,7 +241,8 @@ images = ingredients.jpg
 
 - 허용 형식: JPEG, PNG, HEIC
 - 제품당 1~3장, 장당 최대 10 MB
-- 서버는 EXIF 위치 정보를 제거하고 Supabase Storage의 비공개 버킷에 저장한다.
+- 현재 해커톤 구현은 원본을 Supabase Storage 비공개 버킷에 저장한다. EXIF 제거와
+  배경 제거 이미지는 운영 전 별도 처리 파이프라인으로 완성해야 한다.
 - DB에는 바이너리가 아니라 `bucket`, `object_path`, `mime_type`, `size_bytes`를 저장한다.
 
 순서 변경 요청은 누락·중복을 막기 위해 전체 목록을 보낸다.

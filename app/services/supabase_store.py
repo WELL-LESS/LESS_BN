@@ -5,6 +5,7 @@ import secrets
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+from app.core.config import settings
 from app.core.errors import ApiError
 from app.services.demo_store import DISCLAIMER, DemoSession, DemoStore, iso, utc_now
 from app.services.supabase_client import get_supabase_admin_client
@@ -1013,6 +1014,94 @@ class SupabaseStore:
                 if row["error_code"]
                 else None
             ),
+            "created_at": row["queued_at"],
+            "completed_at": row["completed_at"],
+        }
+
+    def record_ai_analysis_result(
+        self,
+        session: DemoSession,
+        routine_id: str,
+        *,
+        input_payload: dict,
+        output_payload: dict,
+    ) -> dict:
+        self._require_routine(session, routine_id)
+        now = iso(utc_now())
+        row = (
+            self.client.table("ai_analysis_runs")
+            .insert(
+                {
+                    "routine_id": routine_id,
+                    "job_type": "SUITABILITY_ANALYSIS",
+                    "status": "SUCCEEDED",
+                    "progress": 100,
+                    "provider": "OPENAI",
+                    "model_name": settings.openai_model,
+                    "prompt_version": "less-prompts-compact",
+                    "analysis_version": settings.openai_response_schema_version,
+                    "response_schema_version": settings.openai_response_schema_version,
+                    "provider_prompt_id": settings.openai_prompt_id,
+                    "provider_prompt_version": settings.openai_prompt_version,
+                    "input_payload": input_payload,
+                    "output_payload": output_payload,
+                    "started_at": now,
+                    "completed_at": now,
+                }
+            )
+            .execute()
+            .data[0]
+        )
+
+        scans = (
+            self.client.table("product_scans")
+            .select("id")
+            .eq("routine_id", routine_id)
+            .execute()
+            .data
+        )
+        scan_ids = [scan["id"] for scan in scans]
+        images = (
+            self.client.table("product_scan_images")
+            .select("id")
+            .in_("product_scan_id", scan_ids)
+            .order("created_at")
+            .execute()
+            .data
+            if scan_ids
+            else []
+        )
+        if images:
+            self.client.table("ai_analysis_run_images").insert(
+                [
+                    {
+                        "ai_analysis_run_id": row["id"],
+                        "product_scan_image_id": image["id"],
+                        "image_variant": "ORIGINAL",
+                        "input_detail": "HIGH",
+                        "display_order": index,
+                    }
+                    for index, image in enumerate(images, start=1)
+                ]
+            ).execute()
+
+        self.client.table("routine_sessions").update(
+            {
+                "overall_score": output_payload.get("overall_score"),
+                "analysis_summary": output_payload.get("summary"),
+                "score_breakdown": {
+                    "ruleset_version": output_payload.get("ruleset_version"),
+                    "source": "OPENAI",
+                },
+            }
+        ).eq("id", routine_id).execute()
+        return {
+            "id": row["id"],
+            "type": row["job_type"],
+            "routine_id": routine_id,
+            "status": row["status"],
+            "progress": row["progress"],
+            "error": None,
             "created_at": row["queued_at"],
             "completed_at": row["completed_at"],
         }

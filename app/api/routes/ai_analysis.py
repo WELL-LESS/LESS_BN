@@ -4,16 +4,24 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, UploadFile
 
+from app.api.dependencies import SessionDependency
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.prompt.less_prompts_compact import PROMPT_2, PROMPT_3
 from app.services.openai_service import run_product_image_prompt, run_prompt
+from app.services.store import store
 
 router = APIRouter()
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
-MAX_IMAGES = 3
+MAX_IMAGES = 10
+IMAGE_TYPES_BY_EXTENSION = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "webp": "image/webp",
+}
 
 
 def _parse_json(raw: str, stage: str) -> dict:
@@ -56,17 +64,30 @@ def _product_view(raw: dict, index: int) -> dict:
 
 @router.post("/analyze-routine")
 async def analyze_routine(
-    profile_code: Annotated[str, Form()],
+    routine_id: Annotated[str, Form()],
     images: Annotated[list[UploadFile], File()],
+    session: SessionDependency,
 ) -> dict:
     if not 1 <= len(images) <= MAX_IMAGES:
         raise ApiError(
-            422, "INVALID_IMAGE_COUNT", "제품 사진은 1장부터 3장까지 등록할 수 있습니다."
+            422, "INVALID_IMAGE_COUNT", "제품 사진은 1장부터 10장까지 등록할 수 있습니다."
         )
+
+    routine = store.get_routine(session, routine_id)
+    overview = store.overview(session)
+    latest_diagnosis = overview.get("latest_diagnosis") or {}
+    profile_code = latest_diagnosis.get("diagnosis_code")
+    if not profile_code:
+        raise ApiError(404, "DIAGNOSIS_NOT_FOUND", "피부 진단 결과를 찾을 수 없습니다.")
+    if not routine.get("product_inputs"):
+        raise ApiError(400, "PRODUCT_INPUT_REQUIRED", "저장된 제품 사진이 없습니다.")
 
     image_inputs: list[tuple[bytes, str]] = []
     for image in images:
         content_type = (image.content_type or "").lower()
+        extension = (image.filename or "").rsplit(".", maxsplit=1)[-1].lower()
+        if content_type in {"", "application/octet-stream"}:
+            content_type = IMAGE_TYPES_BY_EXTENSION.get(extension, content_type)
         if content_type not in ALLOWED_IMAGE_TYPES:
             raise ApiError(
                 422, "UNSUPPORTED_IMAGE_TYPE", "JPG, PNG, WEBP 이미지만 사용할 수 있습니다."
@@ -123,24 +144,35 @@ async def analyze_routine(
     overall_score = int(penalty.get("final_score") or routine_analysis.get("final_score") or 0)
     remove_candidates = routine_analysis.get("remove_candidates") or []
 
-    return {
-        "data": {
-            "profile_code": profile_code,
-            "model": settings.openai_model,
-            "products": products,
-            "routine": [
-                {
-                    "position": index + 1,
-                    "name": product["name"],
-                    "category": product["category"],
-                    "description": product["description"],
-                }
-                for index, product in enumerate(products)
-            ],
-            "overall_score": max(0, min(100, overall_score)),
-            "summary": routine_analysis.get("summary")
-            or "촬영한 제품 루틴의 피부 적합도 분석 결과입니다.",
-            "remove_candidates": remove_candidates,
-            "ruleset_version": routine_result.get("ruleset_version") or "LESS_SIX_INGREDIENTS_1.1",
-        }
+    response_data = {
+        "profile_code": profile_code,
+        "routine_id": routine_id,
+        "model": settings.openai_model,
+        "products": products,
+        "routine": [
+            {
+                "position": index + 1,
+                "name": product["name"],
+                "category": product["category"],
+                "description": product["description"],
+            }
+            for index, product in enumerate(products)
+        ],
+        "overall_score": max(0, min(100, overall_score)),
+        "summary": routine_analysis.get("summary")
+        or "촬영한 제품 루틴의 피부 적합도 분석 결과입니다.",
+        "remove_candidates": remove_candidates,
+        "ruleset_version": routine_result.get("ruleset_version") or "LESS_SIX_INGREDIENTS_1.1",
     }
+    analysis_run = store.record_ai_analysis_result(
+        session,
+        routine_id,
+        input_payload={
+            "profile_code": profile_code,
+            "image_count": len(image_inputs),
+            "ruleset_version": response_data["ruleset_version"],
+        },
+        output_payload=response_data,
+    )
+    response_data["analysis_run_id"] = analysis_run["id"]
+    return {"data": response_data}
