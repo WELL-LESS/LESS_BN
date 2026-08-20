@@ -1,17 +1,23 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Response, status
 
-from app.schemas.auth import CodeAuthRequest, CodeAuthResponse
-from app.services.demo_data import DEMO_PERSONAL_CODE
+from app.api.dependencies import SessionDependency
+from app.schemas.api import CodeVerifyRequest, RefreshRequest
+from app.services.store import store
 
 router = APIRouter()
 
 
-@router.post("/code", response_model=CodeAuthResponse)
-async def authenticate_code(payload: CodeAuthRequest) -> CodeAuthResponse:
-    if payload.personal_code != DEMO_PERSONAL_CODE:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="유효하지 않은 개인 코드입니다.",
-        )
-    return CodeAuthResponse(user_id="demo-user", diagnosis_id="demo-diagnosis")
+@router.post("/code/verify")
+async def verify_code(payload: CodeVerifyRequest) -> dict:
+    return {"data": store.verify_code(payload.personal_code, payload.device_id)}
 
+
+@router.post("/token/refresh")
+async def refresh_token(payload: RefreshRequest) -> dict:
+    return {"data": store.refresh(payload.refresh_token)}
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(session: SessionDependency) -> Response:
+    store.revoke(session)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

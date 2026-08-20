@@ -15,4 +15,3 @@ AAC_REPLACEMENTS = {
     "SERUM": "aac-serum-001",
     "CREAM": "aac-cream-001",
 }
-

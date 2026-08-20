@@ -7,4 +7,3 @@ class DiagnosisResponse(BaseModel):
     concerns: list[str]
     recommended_ingredients: list[str]
     caution_ingredients: list[str]
-

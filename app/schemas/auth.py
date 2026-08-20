@@ -8,4 +8,3 @@ class CodeAuthRequest(BaseModel):
 class CodeAuthResponse(BaseModel):
     user_id: str
     diagnosis_id: str
-

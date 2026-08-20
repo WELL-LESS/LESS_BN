@@ -1,8 +1,11 @@
-from fastapi import FastAPI
+from uuid import uuid4
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.errors import ApiError, api_error_handler
 
 
 def create_app() -> FastAPI:
@@ -18,9 +21,17 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_exception_handler(ApiError, api_error_handler)
+
+    @app.middleware("http")
+    async def add_request_id(request: Request, call_next):
+        request.state.request_id = request.headers.get("X-Request-ID", f"req_{uuid4().hex}")
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request.state.request_id
+        return response
+
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app
 
 
 app = create_app()
-

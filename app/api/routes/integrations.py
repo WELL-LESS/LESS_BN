@@ -13,4 +13,3 @@ async def integration_status() -> IntegrationStatusResponse:
         openai_configured=settings.has_openai_config,
         openai_model=settings.openai_model,
     )
-

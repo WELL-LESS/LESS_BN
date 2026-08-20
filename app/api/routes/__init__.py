@@ -1,2 +1,1 @@
 """Versioned endpoint modules."""
-

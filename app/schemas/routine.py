@@ -50,4 +50,3 @@ class RoutineAnalysisResponse(BaseModel):
     night_routine: list[RoutineStep]
     product_results: list[ProductAnalysisResult]
     disclaimer: str
-

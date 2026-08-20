@@ -65,11 +65,7 @@ def _analyze_product(product: RoutineProductInput) -> ProductAnalysisResult:
 
 
 def _routine_steps(products: list[RoutineProductInput], usage: UsageTime) -> list[RoutineStep]:
-    applicable = [
-        product
-        for product in products
-        if product.usage in {usage, UsageTime.both}
-    ]
+    applicable = [product for product in products if product.usage in {usage, UsageTime.both}]
     ordered = sorted(applicable, key=lambda item: CATEGORY_ORDER.get(item.category.upper(), 999))
     return [
         RoutineStep(
