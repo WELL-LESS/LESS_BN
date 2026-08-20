@@ -7,12 +7,16 @@ from app.api.router import api_router
 from app.core.config import settings
 from app.core.errors import ApiError, api_error_handler
 
-
+from app.api import ai_test
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
         description="AAC 개인화 스킨케어 루틴 분석 API",
+    )
+    app.include_router(
+    ai_test.router,
+    prefix="/api/v1",
     )
     app.add_middleware(
         CORSMiddleware,
