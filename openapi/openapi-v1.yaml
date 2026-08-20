@@ -1,0 +1,1054 @@
+openapi: 3.1.0
+info:
+  title: well less API
+  version: 1.0.0
+  description: >-
+    WHS 피부 진단과 사용 제품을 연결해 단일 스킨케어 루틴을 구성하고,
+    적합도 분석, AAC 교체, 장바구니와 결제를 제공하는 모바일 앱 API.
+servers:
+  - url: http://127.0.0.1:8000/api/v1
+    description: Local
+  - url: http://10.0.2.2:8000/api/v1
+    description: Android emulator to local backend
+tags:
+  - name: Auth
+  - name: Home
+  - name: Diagnoses
+  - name: Catalog
+  - name: Routines
+  - name: AI Jobs
+  - name: Cart
+  - name: Orders
+  - name: Analytics
+paths:
+  /auth/code/verify:
+    post:
+      tags: [Auth]
+      summary: WHS 개인 코드 인증 및 앱 세션 발급
+      operationId: verifyPersonalCode
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyCodeRequest'
+      responses:
+        '200':
+          description: 인증 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSessionEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /auth/token/refresh:
+    post:
+      tags: [Auth]
+      summary: 액세스 토큰 갱신
+      operationId: refreshAccessToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: 갱신 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 현재 세션 폐기
+      operationId: logout
+      responses:
+        '204': { description: 로그아웃 성공 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /me/overview:
+    get:
+      tags: [Home]
+      summary: 메인 화면 요약 조회
+      operationId: getMyOverview
+      responses:
+        '200':
+          description: 메인 화면 데이터
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OverviewEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /diagnoses/{diagnosis_id}:
+    get:
+      tags: [Diagnoses]
+      summary: 피부 진단 레포트 조회
+      operationId: getDiagnosis
+      parameters:
+        - $ref: '#/components/parameters/DiagnosisId'
+      responses:
+        '200':
+          description: 피부 타입, 3축, 상세 지표
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiagnosisEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /product-categories:
+    get:
+      tags: [Catalog]
+      summary: 제품 등록 카테고리 조회
+      operationId: listProductCategories
+      responses:
+        '200':
+          description: 활성 카테고리 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListEnvelope'
+  /routines:
+    post:
+      tags: [Routines]
+      summary: 새 루틴 검사 생성
+      operationId: createRoutine
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoutineRequest'
+      responses:
+        '201':
+          description: DRAFT 루틴 생성
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutineEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    get:
+      tags: [Routines]
+      summary: 진행 중 또는 이전 루틴 목록
+      operationId: listRoutines
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/RoutineStatus'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 루틴 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutineListEnvelope'
+  /routines/{routine_id}:
+    get:
+      tags: [Routines]
+      summary: 현재 루틴과 제품 입력 조회
+      operationId: getRoutine
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+      responses:
+        '200':
+          description: 루틴 상세
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutineEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /routines/{routine_id}/product-inputs:
+    post:
+      tags: [Routines]
+      summary: 카테고리별 제품 사진 등록
+      description: 제품당 이미지 1~3장, 각 이미지 최대 10 MB. JPEG, PNG, HEIC만 허용한다.
+      operationId: createProductInput
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [category_code, images]
+              properties:
+                category_code: { type: string, example: SERUM_ESSENCE_AMPOULE }
+                client_product_id: { type: [string, 'null'], format: uuid }
+                images:
+                  type: array
+                  minItems: 1
+                  maxItems: 3
+                  items: { type: string, format: binary }
+      responses:
+        '201':
+          description: 제품 입력 생성
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductInputEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /routines/{routine_id}/product-inputs/{input_id}:
+    delete:
+      tags: [Routines]
+      summary: 미확정 제품 입력 삭제
+      operationId: deleteProductInput
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+        - name: input_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204': { description: 삭제 성공 }
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /routines/{routine_id}/compose:
+    post:
+      tags: [Routines]
+      summary: 제품 식별 및 단일 AI 루틴 구성 시작
+      operationId: composeRoutine
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: 작업 접수
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /routines/{routine_id}/items/order:
+    put:
+      tags: [Routines]
+      summary: 단일 루틴의 전체 순서 저장
+      operationId: reorderRoutineItems
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderRoutineRequest'
+      responses:
+        '200':
+          description: 순서 변경 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutineEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /routines/{routine_id}/confirm:
+    post:
+      tags: [Routines]
+      summary: 사용자 검토 루틴 확정
+      operationId: confirmRoutine
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: CONFIRMED 전환
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoutineEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /routines/{routine_id}/suitability-analysis:
+    post:
+      tags: [Routines]
+      summary: 피부 적합도 분석 시작
+      operationId: analyzeSuitability
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202':
+          description: 작업 접수
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /routines/{routine_id}/analysis:
+    get:
+      tags: [Routines]
+      summary: 적합도 결과와 AAC 비교 후보 조회
+      operationId: getRoutineAnalysis
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+      responses:
+        '200':
+          description: 적합도 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /routines/{routine_id}/recommendations/{recommendation_id}/decision:
+    put:
+      tags: [Routines]
+      summary: 제거 또는 AAC 교체 결정
+      description: REPLACE는 최종 루틴 변경과 장바구니 추가를 하나의 트랜잭션으로 처리한다.
+      operationId: decideRecommendation
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+        - name: recommendation_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [REMOVE, REPLACE]
+      responses:
+        '200':
+          description: 결정 적용 결과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /routines/{routine_id}/final:
+    get:
+      tags: [Routines]
+      summary: 최종 또는 이전 루틴 스냅샷 조회
+      operationId: getFinalRoutine
+      parameters:
+        - $ref: '#/components/parameters/RoutineId'
+      responses:
+        '200':
+          description: 최종 루틴
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinalRoutineEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /jobs/{job_id}:
+    get:
+      tags: [AI Jobs]
+      summary: AI 작업 상태 조회
+      operationId: getJob
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 작업 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /cart:
+    get:
+      tags: [Cart]
+      summary: 내 장바구니 조회
+      operationId: getCart
+      responses:
+        '200':
+          description: 장바구니
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartEnvelope'
+  /cart/items/{item_id}:
+    patch:
+      tags: [Cart]
+      summary: 장바구니 수량 변경
+      operationId: updateCartItem
+      parameters:
+        - $ref: '#/components/parameters/CartItemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quantity]
+              properties:
+                quantity: { type: integer, minimum: 1, maximum: 99 }
+      responses:
+        '200':
+          description: 변경된 장바구니
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Cart]
+      summary: 장바구니 상품 삭제
+      operationId: deleteCartItem
+      parameters:
+        - $ref: '#/components/parameters/CartItemId'
+      responses:
+        '204': { description: 삭제 성공 }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /orders:
+    post:
+      tags: [Orders]
+      summary: 장바구니 기준 주문·결제 시작
+      operationId: createOrder
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: 주문 생성
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /orders/{order_id}:
+    get:
+      tags: [Orders]
+      summary: 주문·결제 상태 조회
+      operationId: getOrder
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 주문 상세
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /payments/webhooks/{provider}:
+    post:
+      tags: [Orders]
+      summary: 결제사 서버 웹훅
+      description: 모바일 앱에서 호출하지 않는다. 제공자 서명 검증이 필수다.
+      operationId: receivePaymentWebhook
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '204': { description: 처리 완료 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /analytics/events/batch:
+    post:
+      tags: [Analytics]
+      summary: 클라이언트 행동 이벤트 일괄 기록
+      operationId: createAnalyticsEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventBatchRequest'
+      responses:
+        '202': { description: 이벤트 접수 }
+        '422':
+          $ref: '#/components/responses/ValidationError'
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    DiagnosisId:
+      name: diagnosis_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RoutineId:
+      name: routine_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CartItemId:
+      name: item_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: [string, 'null'] }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+  responses:
+    BadRequest:
+      description: 잘못된 요청
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: 인증 실패 또는 토큰 만료
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    NotFound:
+      description: 리소스 없음
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Conflict:
+      description: 중복 또는 상태 충돌
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    PayloadTooLarge:
+      description: 이미지 용량 초과
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    ValidationError:
+      description: 필드 검증 실패
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+    DateTime:
+      type: string
+      format: date-time
+    Money:
+      type: integer
+      minimum: 0
+      description: KRW 정수 금액
+    VerifyCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [personal_code, device_id]
+      properties:
+        personal_code:
+          type: string
+          pattern: '^WHS-[0-9]{4}-[A-Za-z0-9]{4,}$'
+          example: WHS-2026-1234
+        device_id: { type: string, minLength: 8, maxLength: 128 }
+    UserSummary:
+      type: object
+      required: [id, display_name]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        display_name: { type: string }
+    TokenData:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, const: bearer }
+        expires_in: { type: integer, minimum: 1 }
+    AuthSession:
+      allOf:
+        - $ref: '#/components/schemas/TokenData'
+        - type: object
+          required: [user, latest_diagnosis_id]
+          properties:
+            user: { $ref: '#/components/schemas/UserSummary' }
+            latest_diagnosis_id: { $ref: '#/components/schemas/Uuid' }
+    AuthSessionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/AuthSession' }
+    TokenEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/TokenData' }
+    Overview:
+      type: object
+      required: [user, latest_diagnosis, active_routine, completed_routine_count, cart_item_count]
+      properties:
+        user: { $ref: '#/components/schemas/UserSummary' }
+        latest_diagnosis: { $ref: '#/components/schemas/DiagnosisSummary' }
+        active_routine:
+          oneOf:
+            - $ref: '#/components/schemas/RoutineSummary'
+            - type: 'null'
+        completed_routine_count: { type: integer, minimum: 0 }
+        cart_item_count: { type: integer, minimum: 0 }
+    OverviewEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Overview' }
+    DiagnosisSummary:
+      type: object
+      required: [id, diagnosis_code, diagnosed_at]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        diagnosis_code: { type: string, example: OSP }
+        diagnosed_at: { $ref: '#/components/schemas/DateTime' }
+    Diagnosis:
+      allOf:
+        - $ref: '#/components/schemas/DiagnosisSummary'
+        - type: object
+          required: [skin_type, axes, metrics, disclaimer]
+          properties:
+            skin_type:
+              type: object
+              required: [code, name, summary]
+              properties:
+                code: { type: string, example: OSP }
+                name: { type: string }
+                summary: { type: string }
+            axes:
+              type: array
+              items:
+                type: object
+                required: [code, selected, score]
+                properties:
+                  code: { type: string, enum: [O_D, S_R, P_N] }
+                  selected: { type: string, enum: [O, D, S, R, P, N] }
+                  score: { type: number, minimum: 0, maximum: 100 }
+            metrics:
+              type: array
+              items:
+                type: object
+                required: [code, name, score, level]
+                properties:
+                  code: { type: string, example: PORE }
+                  name: { type: string, example: 모공 }
+                  score: { type: number, minimum: 0, maximum: 100 }
+                  level: { type: string, enum: [GOOD, NORMAL, CAUTION, SEVERE] }
+            disclaimer: { type: string }
+    DiagnosisEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Diagnosis' }
+    ProductCategory:
+      type: object
+      required: [code, name, display_order, required_step, active]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        icon_key: { type: [string, 'null'] }
+        display_order: { type: integer, minimum: 1 }
+        required_step: { type: boolean }
+        active: { type: boolean }
+    CategoryListEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ProductCategory' }
+    RoutineStatus:
+      type: string
+      enum: [DRAFT, COMPOSING, COMPOSE_FAILED, REVIEW_REQUIRED, CONFIRMED, ANALYZING, ANALYSIS_FAILED, DECISION_REQUIRED, COMPLETED]
+    ProductInputStatus:
+      type: string
+      enum: [UPLOADED, IDENTIFYING, IDENTIFIED, NEEDS_REVIEW, FAILED]
+    CreateRoutineRequest:
+      type: object
+      additionalProperties: false
+      required: [diagnosis_id, category_codes]
+      properties:
+        diagnosis_id: { $ref: '#/components/schemas/Uuid' }
+        category_codes:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { type: string }
+    ProductSummary:
+      type: object
+      required: [id, brand, name, category_code, is_aac]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        brand: { type: string }
+        name: { type: string }
+        category_code: { type: string }
+        is_aac: { type: boolean }
+        price:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        image_url: { type: [string, 'null'], format: uri }
+    StoredImage:
+      type: object
+      required: [id, mime_type, size_bytes]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        signed_url: { type: [string, 'null'], format: uri }
+        mime_type: { type: string }
+        size_bytes: { type: integer, minimum: 1 }
+    ProductInput:
+      type: object
+      required: [id, category_code, status, images, created_at]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        category_code: { type: string }
+        status: { $ref: '#/components/schemas/ProductInputStatus' }
+        identified_product:
+          oneOf:
+            - $ref: '#/components/schemas/ProductSummary'
+            - type: 'null'
+        confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/StoredImage' }
+        created_at: { $ref: '#/components/schemas/DateTime' }
+    ProductInputEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ProductInput' }
+    RoutineItem:
+      type: object
+      required: [id, position, category_code, product, source]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        position: { type: integer, minimum: 1 }
+        category_code: { type: string }
+        product: { $ref: '#/components/schemas/ProductSummary' }
+        source: { type: string, enum: [USER_PRODUCT, AAC_REPLACEMENT] }
+        purchased: { type: boolean, default: false }
+    RoutineSummary:
+      type: object
+      required: [id, status, created_at, updated_at]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        status: { $ref: '#/components/schemas/RoutineStatus' }
+        overall_score: { type: [number, 'null'], minimum: 0, maximum: 100 }
+        item_count: { type: integer, minimum: 0 }
+        created_at: { $ref: '#/components/schemas/DateTime' }
+        updated_at: { $ref: '#/components/schemas/DateTime' }
+        completed_at:
+          oneOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+    Routine:
+      allOf:
+        - $ref: '#/components/schemas/RoutineSummary'
+        - type: object
+          required: [diagnosis_id, selected_category_codes, product_inputs, items]
+          properties:
+            diagnosis_id: { $ref: '#/components/schemas/Uuid' }
+            selected_category_codes:
+              type: array
+              items: { type: string }
+            product_inputs:
+              type: array
+              items: { $ref: '#/components/schemas/ProductInput' }
+            items:
+              type: array
+              description: 오전·야간 구분이 없는 단일 순서
+              items: { $ref: '#/components/schemas/RoutineItem' }
+    RoutineEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Routine' }
+    RoutineListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/RoutineSummary' }
+        meta:
+          type: object
+          required: [next_cursor]
+          properties:
+            next_cursor: { type: [string, 'null'] }
+    ReorderRoutineRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [routine_item_id, position]
+            properties:
+              routine_item_id: { $ref: '#/components/schemas/Uuid' }
+              position: { type: integer, minimum: 1 }
+    JobStatus:
+      type: string
+      enum: [QUEUED, RUNNING, SUCCEEDED, FAILED]
+    Job:
+      type: object
+      required: [id, type, status, progress, created_at]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        type: { type: string, enum: [ROUTINE_COMPOSE, SUITABILITY_ANALYSIS] }
+        status: { $ref: '#/components/schemas/JobStatus' }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+        result_resource: { type: [string, 'null'], format: uri-reference }
+        error:
+          oneOf:
+            - $ref: '#/components/schemas/ErrorDetail'
+            - type: 'null'
+        created_at: { $ref: '#/components/schemas/DateTime' }
+        completed_at:
+          oneOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+    JobEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Job' }
+    FlaggedIngredient:
+      type: object
+      required: [name, reason, severity]
+      properties:
+        name: { type: string }
+        reason: { type: string }
+        severity: { type: string, enum: [LOW, MEDIUM, HIGH] }
+    Recommendation:
+      type: object
+      required: [id, required_single_step, replacement_product, comparison, decision]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        required_single_step: { type: boolean }
+        replacement_product: { $ref: '#/components/schemas/ProductSummary' }
+        replacement_score: { type: number, minimum: 0, maximum: 100 }
+        comparison:
+          type: object
+          required: [improved_ingredients, excluded_ingredients]
+          properties:
+            improved_ingredients: { type: array, items: { type: string } }
+            excluded_ingredients: { type: array, items: { type: string } }
+        decision: { type: [string, 'null'], enum: [REMOVE, REPLACE, null] }
+    ProductAnalysis:
+      type: object
+      required: [routine_item_id, score, verdict, reasons, flagged_ingredients]
+      properties:
+        routine_item_id: { $ref: '#/components/schemas/Uuid' }
+        score: { type: number, minimum: 0, maximum: 100 }
+        verdict: { type: string, enum: [KEEP, CHOICE, REMOVE] }
+        reasons: { type: array, items: { type: string } }
+        flagged_ingredients:
+          type: array
+          items: { $ref: '#/components/schemas/FlaggedIngredient' }
+        recommendation:
+          oneOf:
+            - $ref: '#/components/schemas/Recommendation'
+            - type: 'null'
+    Analysis:
+      type: object
+      required: [routine_id, overall_score, summary, items, analysis_version, model_version, disclaimer]
+      properties:
+        routine_id: { $ref: '#/components/schemas/Uuid' }
+        overall_score: { type: number, minimum: 0, maximum: 100 }
+        summary:
+          type: object
+          required: [total, unsuitable]
+          properties:
+            total: { type: integer, minimum: 0 }
+            unsuitable: { type: integer, minimum: 0 }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ProductAnalysis' }
+        analysis_version: { type: string }
+        model_version: { type: string }
+        disclaimer: { type: string }
+    AnalysisEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Analysis' }
+    DecisionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [recommendation_id, decision, routine_status, cart_item_count]
+          properties:
+            recommendation_id: { $ref: '#/components/schemas/Uuid' }
+            decision: { type: string, enum: [REMOVE, REPLACE] }
+            routine_status: { $ref: '#/components/schemas/RoutineStatus' }
+            cart_item_count: { type: integer, minimum: 0 }
+    FinalRoutineEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [routine_id, items, cart_item_count, completed_at]
+          properties:
+            routine_id: { $ref: '#/components/schemas/Uuid' }
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/RoutineItem' }
+            cart_item_count: { type: integer, minimum: 0 }
+            completed_at: { $ref: '#/components/schemas/DateTime' }
+    CartItem:
+      type: object
+      required: [id, product, quantity, unit_price, line_total, source_routine_id]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        product: { $ref: '#/components/schemas/ProductSummary' }
+        quantity: { type: integer, minimum: 1 }
+        unit_price: { $ref: '#/components/schemas/Money' }
+        line_total: { $ref: '#/components/schemas/Money' }
+        source_routine_id: { $ref: '#/components/schemas/Uuid' }
+    CartEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, total_amount, currency]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/CartItem' }
+            total_amount: { $ref: '#/components/schemas/Money' }
+            currency: { type: string, const: KRW }
+    PaymentMethod:
+      type: string
+      enum: [KAKAO_PAY, NAVER_PAY, TOSS_PAY, CARD]
+    CreateOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [payment_method, return_url]
+      properties:
+        payment_method: { $ref: '#/components/schemas/PaymentMethod' }
+        return_url: { type: string, format: uri }
+    OrderStatus:
+      type: string
+      enum: [PENDING_PAYMENT, PAID, PAYMENT_FAILED, CANCELLED]
+    Order:
+      type: object
+      required: [id, order_number, status, items, total_amount, currency, payment_method, created_at]
+      properties:
+        id: { $ref: '#/components/schemas/Uuid' }
+        order_number: { type: string }
+        status: { $ref: '#/components/schemas/OrderStatus' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CartItem' }
+        total_amount: { $ref: '#/components/schemas/Money' }
+        currency: { type: string, const: KRW }
+        payment_method: { $ref: '#/components/schemas/PaymentMethod' }
+        payment_action:
+          type: [object, 'null']
+          properties:
+            type: { type: string, enum: [DEEPLINK, REDIRECT, SDK, NONE] }
+            url: { type: [string, 'null'], format: uri }
+        created_at: { $ref: '#/components/schemas/DateTime' }
+        paid_at:
+          oneOf:
+            - $ref: '#/components/schemas/DateTime'
+            - type: 'null'
+    OrderEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Order' }
+    EventBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [events]
+      properties:
+        events:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            required: [name, occurred_at, session_id]
+            properties:
+              name:
+                type: string
+                enum: [code_verified, inspection_started, routine_review_completed, analysis_viewed, replacement_viewed, replacement_added, cart_viewed, checkout_started, payment_completed]
+              occurred_at: { $ref: '#/components/schemas/DateTime' }
+              session_id: { $ref: '#/components/schemas/Uuid' }
+              properties: { type: object, additionalProperties: true }
+    ErrorDetail:
+      type: object
+      required: [code, message, retryable, request_id]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        field: { type: [string, 'null'] }
+        retryable: { type: boolean }
+        request_id: { type: string }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: '#/components/schemas/ErrorDetail' }

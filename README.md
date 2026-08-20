@@ -2,6 +2,13 @@
 
 FastAPI 기반 AAC 스킨케어 루틴 분석 API입니다.
 
+## API 계약
+
+- 사람용 명세: [`docs/API_SPEC_V1.md`](docs/API_SPEC_V1.md)
+- 기계 판독 계약: [`openapi/openapi-v1.yaml`](openapi/openapi-v1.yaml)
+
+현재 FastAPI 라우트는 초기 스텁이며, 신규 구현은 위 v1 계약을 기준으로 진행합니다.
+
 ## 최초 설정
 
 ```powershell
