@@ -2,7 +2,7 @@
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
-project_id = "well_less_backend"
+project_id = "supabase"
 
 [api]
 enabled = true
@@ -117,12 +117,20 @@ enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+[storage.buckets."product-scans-original"]
+public = false
+file_size_limit = "10MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/heic", "image/heif"]
+
+[storage.buckets."product-scans-cutout"]
+public = false
+file_size_limit = "10MiB"
+allowed_mime_types = ["image/png", "image/webp"]
+
+[storage.buckets."product-catalog"]
+public = true
+file_size_limit = "5MiB"
+allowed_mime_types = ["image/jpeg", "image/png", "image/webp"]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
@@ -252,7 +260,7 @@ otp_expiry = 3600
 # [auth.email.notification.password_changed]
 # enabled = true
 # subject = "Your password has been changed"
-# content_path = "./supabase/templates/password_changed_notification.html"
+# content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
@@ -409,6 +417,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 [experimental.pgdelta]
 enabled = true
 # Directory under `supabase/` where declarative files are written.
-# declarative_schema_path = "./schemas"
+# declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"

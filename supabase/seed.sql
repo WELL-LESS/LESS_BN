@@ -1,0 +1,3 @@
+-- Reference and hackathon demo data are versioned in
+-- migrations/20260820122120_seed_well_less_reference_data.sql.
+-- Keep this file so local `supabase db reset` has a valid seed target.
