@@ -207,8 +207,56 @@ class DemoStore:
                     "level": "CAUTION",
                 },
             ],
+            "images": [],
             "disclaimer": "본 결과는 의료적 진단이 아닙니다.",
         }
+
+    def skin_type_catalog(self) -> list[dict]:
+        return [
+            {
+                "code": "O",
+                "label": "지성",
+                "title": "지성 피부",
+                "description": "피지 분비가 많고 모공이 넓은 유형",
+                "display_order": 10,
+                "types": [
+                    self._skin_type("OSP", "지성·민감성·색소성"),
+                    self._skin_type("OSN", "지성·민감성·비색소성"),
+                    self._skin_type("ORP", "지성·저항성·색소성"),
+                    self._skin_type("ORN", "지성·저항성·비색소성"),
+                ],
+            },
+            {
+                "code": "D",
+                "label": "건성",
+                "title": "건성 피부",
+                "description": "수분과 유분이 부족해 건조함을 느끼는 유형",
+                "display_order": 20,
+                "types": [
+                    self._skin_type("DSP", "건성·민감성·색소성"),
+                    self._skin_type("DSN", "건성·민감성·비색소성"),
+                    self._skin_type("DRP", "건성·저항성·색소성"),
+                    self._skin_type("DRN", "건성·저항성·비색소성"),
+                ],
+            },
+            {
+                "code": "C",
+                "label": "복합성",
+                "title": "복합성 피부",
+                "description": "부위에 따라 유분과 건조함이 함께 나타나는 유형",
+                "display_order": 30,
+                "types": [
+                    self._skin_type("CSP", "복합성·민감성·색소성"),
+                    self._skin_type("CSN", "복합성·민감성·비색소성"),
+                    self._skin_type("CRP", "복합성·저항성·색소성"),
+                    self._skin_type("CRN", "복합성·저항성·비색소성"),
+                ],
+            },
+        ]
+
+    @staticmethod
+    def _skin_type(code: str, name: str) -> dict:
+        return {"code": code, "name": name, "summary": name}
 
     def overview(self, session: DemoSession) -> dict:
         owned = self._owned_routines(session)
@@ -404,7 +452,7 @@ class DemoStore:
                         "brand": "AAC",
                         "name": "AAC 세이프 BHA 세럼",
                         "score": 91,
-                        "price": 32000,
+                        "price": 48000,
                         "image_url": None,
                     },
                     "comparison": {

@@ -193,6 +193,14 @@ class SupabaseStore:
             .execute()
             .data
         )
+        image_rows = (
+            self.client.table("diagnosis_images")
+            .select("id,image_role,bucket,object_path,mime_type,width,height,display_order")
+            .eq("diagnosis_id", diagnosis_id)
+            .order("display_order")
+            .execute()
+            .data
+        )
         return {
             "id": diagnosis["id"],
             "diagnosis_code": diagnosis["skin_type_code"],
@@ -212,8 +220,51 @@ class SupabaseStore:
                 }
                 for row in metrics
             ],
+            "images": [
+                {
+                    "id": row["id"],
+                    "role": row["image_role"],
+                    "url": self._private_image_url(row["bucket"], row["object_path"]),
+                    "mime_type": row["mime_type"],
+                    "width": row["width"],
+                    "height": row["height"],
+                }
+                for row in image_rows
+            ],
             "disclaimer": diagnosis["disclaimer"],
         }
+
+    def skin_type_catalog(self) -> list[dict]:
+        families = (
+            self.client.table("skin_type_families")
+            .select("code,label,title,description,display_order")
+            .order("display_order")
+            .execute()
+            .data
+        )
+        types = (
+            self.client.table("skin_types")
+            .select("code,name,summary,family_code")
+            .order("code")
+            .execute()
+            .data
+        )
+        types_by_family: dict[str, list[dict]] = {}
+        for skin_type in types:
+            types_by_family.setdefault(skin_type["family_code"], []).append(
+                {
+                    "code": skin_type["code"],
+                    "name": skin_type["name"],
+                    "summary": skin_type["summary"],
+                }
+            )
+        return [
+            {
+                **family,
+                "types": types_by_family.get(family["code"], []),
+            }
+            for family in families
+        ]
 
     def overview(self, session: DemoSession) -> dict:
         diagnoses = (
@@ -821,7 +872,7 @@ class SupabaseStore:
         products = self._rows_by_ids(
             "products",
             [row["product_id"] for row in rows],
-            "id,brand,name,image_bucket,image_path",
+            "id,brand,name,short_description,image_bucket,image_path",
         )
         product_by_id = {row["id"]: row for row in products}
         items = []
@@ -836,6 +887,7 @@ class SupabaseStore:
                         "id": product["id"],
                         "brand": product["brand"],
                         "name": product["name"],
+                        "description": product.get("short_description"),
                         "image_url": self._product_image_url(product),
                     },
                     "unit_price": row["unit_price"],
@@ -1049,7 +1101,7 @@ class SupabaseStore:
         products = self._rows_by_ids(
             "products",
             [row["matched_product_id"] for row in scans if row["matched_product_id"]],
-            "id,brand,name,image_bucket,image_path",
+            "id,brand,name,short_description,image_bucket,image_path",
         )
         product_by_id = {row["id"]: row for row in products}
         output = []
@@ -1111,6 +1163,7 @@ class SupabaseStore:
                         "id": product["id"],
                         "brand": product["brand"],
                         "name": product["name"],
+                        "description": product.get("short_description"),
                         "category_name": category["name"],
                         "image_url": self._product_image_url(product),
                     },
@@ -1142,6 +1195,7 @@ class SupabaseStore:
                     "category_id": category_id,
                     "brand": product["brand"],
                     "name": product["name"],
+                    "short_description": product.get("description"),
                     "source": "AI_DETECTED",
                     "is_aac": False,
                     "is_verified": False,
@@ -1168,9 +1222,15 @@ class SupabaseStore:
     def _product_image_url(self, product: dict) -> str | None:
         if not product.get("image_bucket") or not product.get("image_path"):
             return None
-        return self.client.storage.from_(product["image_bucket"]).get_public_url(
-            product["image_path"]
-        )
+        if product["image_bucket"] == "product-catalog":
+            return self.client.storage.from_(product["image_bucket"]).get_public_url(
+                product["image_path"]
+            )
+        return self._private_image_url(product["image_bucket"], product["image_path"])
+
+    def _private_image_url(self, bucket: str, object_path: str) -> str | None:
+        signed = self.client.storage.from_(bucket).create_signed_url(object_path, 3600)
+        return signed.get("signedUrl") or signed.get("signedURL")
 
     def _complete_job(self, job_type: str, routine_id: str) -> dict:
         now = iso(utc_now())

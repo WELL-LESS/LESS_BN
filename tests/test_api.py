@@ -44,6 +44,12 @@ def test_core_hackathon_flow(monkeypatch) -> None:
     diagnosis = client.get(f"/api/v1/diagnoses/{diagnosis_id}", headers=headers)
     assert diagnosis.status_code == 200
     assert len(diagnosis.json()["data"]["metrics"]) == 6
+    assert diagnosis.json()["data"]["images"] == []
+
+    skin_types = client.get("/api/v1/skin-types", headers=headers)
+    assert skin_types.status_code == 200
+    assert [family["code"] for family in skin_types.json()["data"]] == ["O", "D", "C"]
+    assert sum(len(family["types"]) for family in skin_types.json()["data"]) == 12
 
     categories = client.get("/api/v1/product-categories", headers=headers)
     assert categories.status_code == 200
@@ -118,7 +124,7 @@ def test_core_hackathon_flow(monkeypatch) -> None:
     assert decision.json()["data"]["status"] == "COMPLETED"
 
     cart = client.get("/api/v1/cart", headers=headers).json()["data"]
-    assert cart["total_amount"] == 32000
+    assert cart["total_amount"] == 48000
     assert cart["items"][0]["product"]["brand"] == "AAC"
 
     order = client.post(

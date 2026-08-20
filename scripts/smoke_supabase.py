@@ -107,7 +107,7 @@ def main() -> None:
             "replace",
         )
         cart = require_success(api.get("/api/v1/cart", headers=headers), "cart")
-        if cart["total_amount"] != 32000:
+        if cart["total_amount"] != 48000:
             raise RuntimeError(f"unexpected cart total: {cart['total_amount']}")
         order = require_success(
             api.post(

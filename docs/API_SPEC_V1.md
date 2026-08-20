@@ -282,7 +282,7 @@ images = ingredients.jpg
             "brand": "AAC",
             "name": "대체 제품",
             "score": 91,
-            "price": 32000,
+            "price": 48000,
             "image_url": "short-lived-signed-url"
           },
           "comparison": {
@@ -336,7 +336,7 @@ images = ingredients.jpg
     "id": "uuid",
     "order_number": "WL-20260820-0001",
     "status": "PENDING_PAYMENT",
-    "total_amount": 32000,
+    "total_amount": 48000,
     "currency": "KRW",
     "payment_method": "KAKAO_PAY",
     "payment_action": {

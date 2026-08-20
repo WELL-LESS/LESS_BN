@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     supabase_secret_key: str | None = None
     openai_api_key: str | None = None
     openai_model: str = "gpt-5.6-luna"
+    openai_prompt_id: str | None = None
+    openai_prompt_version: str | None = None
+    openai_response_schema_version: str = "suitability-analysis-v1"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

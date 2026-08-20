@@ -11,6 +11,7 @@ from app.api.routes import (
     me,
     products,
     routines,
+    skin_types,
 )
 
 api_router = APIRouter()
@@ -19,6 +20,7 @@ api_router.include_router(integrations.router, prefix="/integrations", tags=["in
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(me.router, prefix="/me", tags=["home"])
 api_router.include_router(diagnoses.router, prefix="/diagnoses", tags=["diagnoses"])
+api_router.include_router(skin_types.router, prefix="/skin-types", tags=["diagnoses"])
 api_router.include_router(products.router, prefix="/product-categories", tags=["products"])
 api_router.include_router(routines.router, prefix="/routines", tags=["routines"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
