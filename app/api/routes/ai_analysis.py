@@ -1,8 +1,8 @@
-import asyncio
 import json
 from typing import Annotated
 
 from fastapi import APIRouter, File, Form, UploadFile
+from openai import RateLimitError
 
 from app.api.dependencies import SessionDependency
 from app.core.config import settings
@@ -100,17 +100,19 @@ async def analyze_routine(
         image_inputs.append((content, content_type))
 
     try:
-        product_raw_texts = await asyncio.gather(
-            *(
-                run_product_image_prompt(
+        # Process product images sequentially. Running several high-detail image
+        # and web-search requests at once can exhaust a small project's RPM/TPM
+        # allowance even when the total number of images is low.
+        product_raw_texts = []
+        for content, content_type in image_inputs:
+            product_raw_texts.append(
+                await run_product_image_prompt(
                     prompt=PROMPT_2,
                     profile_code=profile_code,
                     image_bytes=content,
                     content_type=content_type,
                 )
-                for content, content_type in image_inputs
             )
-        )
         product_results = [
             _parse_json(raw, f"제품 {index + 1} 분석")
             for index, raw in enumerate(product_raw_texts)
@@ -130,6 +132,16 @@ async def analyze_routine(
         )
     except ApiError:
         raise
+    except RateLimitError as exc:
+        raise ApiError(
+            429,
+            "AI_RATE_LIMITED",
+            (
+                "OpenAI 사용 한도에 도달했습니다. 잠시 후 다시 시도하거나 "
+                "프로젝트 결제·사용 한도를 확인해주세요."
+            ),
+            retryable=True,
+        ) from exc
     except Exception as exc:
         raise ApiError(
             502,

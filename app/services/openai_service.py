@@ -9,7 +9,11 @@ from app.core.config import settings
 def _client() -> AsyncOpenAI:
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
-    return AsyncOpenAI(api_key=settings.openai_api_key)
+    return AsyncOpenAI(
+        api_key=settings.openai_api_key,
+        max_retries=3,
+        timeout=120.0,
+    )
 
 
 # Prompt 1~3 일반 텍스트 실행
